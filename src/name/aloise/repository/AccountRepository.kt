@@ -1,0 +1,3 @@
+package name.aloise.repository
+
+data class Account(val id: Int, val name: String)

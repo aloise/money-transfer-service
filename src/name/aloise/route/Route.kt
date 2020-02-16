@@ -10,12 +10,13 @@ import name.aloise.utils.http.decodeOrNull
 
 data class AccountCreateRequest(val name: String)
 data class ErrorResponse(val error: String)
+data class AccountData(val id: Int, val name: String, val centAmount: Int)
 
 fun Route.accounts(accountService: AccountService) {
     route("/accounts") {
         get("/{id}") {
             call.parameters["id"]?.toIntOrNull()?.let { accountService.get(it) }.fold({ account ->
-                call.respond(account)
+                call.respond(AccountData(account.first.id, account.first.name, account.second.centAmount))
             }, {
                 call.respond(HttpStatusCode.NotFound)
             })
@@ -23,8 +24,11 @@ fun Route.accounts(accountService: AccountService) {
 
         post("/") {
             call.decodeOrNull<AccountCreateRequest>().fold({ acc ->
-                val accountCreated = accountService.create(AccountService.CreateAccount(acc.name))
-                call.respond(HttpStatusCode.Created, accountCreated)
+                val account = accountService.create(AccountService.CreateAccount(acc.name))
+                call.respond(
+                    HttpStatusCode.Created,
+                    AccountData(account.first.id, account.first.name, account.second.centAmount)
+                )
             }, {
                 call.respond(HttpStatusCode.BadRequest, ErrorResponse("Can't decode the Account json"))
             })

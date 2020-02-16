@@ -30,14 +30,14 @@ class InMemoryAccountService : AccountService {
     }
 
     override suspend fun get(accountId: Int): Pair<Account, AccountBalance>? =
-            accounts[accountId]?.let { acc ->
-                balances[accountId]?.let { balance -> Pair(acc, balance) }
-            }
+        accounts[accountId]?.let { acc ->
+            balances[accountId]?.let { balance -> Pair(acc, balance) }
+        }
 
     override suspend fun remove(accountId: Int): Boolean =
-            balances.remove(accountId) != null || accounts.remove(accountId) != null
+        balances.remove(accountId) != null || accounts.remove(accountId) != null
 
     override suspend fun updateBalance(accountId: Int, balanceUpdateFn: (AccountBalance) -> AccountBalance): Boolean =
-            balances.computeIfPresent(accountId) { _, balance -> balanceUpdateFn(balance) } != null
+        balances.computeIfPresent(accountId) { _, balance -> balanceUpdateFn(balance) } != null
 
 }

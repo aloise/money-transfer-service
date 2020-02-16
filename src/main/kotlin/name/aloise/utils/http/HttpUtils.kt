@@ -5,25 +5,26 @@ import io.ktor.request.receive
 import kotlin.reflect.typeOf
 
 data class ErrorResponse(val message: String)
-data class ValidationErrorResponse(val errors: List<ValidationError>)
+data class ValidationErrorResponse(val errors: ValidationErrors)
 
 data class ValidationError(val name: String, val message: String)
+typealias ValidationErrors = List<ValidationError>
 
 interface Validation {
-    fun errors(): List<ValidationError>
+    suspend fun errors(): ValidationErrors
 }
 
-object ValidationErrors {
-    val empty = listOf<ValidationError>()
+object ValidationErrorsDefault {
+    val empty: ValidationErrors = listOf()
 }
 
 sealed class RequestValidationResult<out T>
 data class Valid<T>(val result: T) : RequestValidationResult<T>()
 data class ReceiveFailed(val cause: Exception) : RequestValidationResult<Nothing>()
-data class ValidationFailed(val errors: List<ValidationError>) : RequestValidationResult<Nothing>()
+data class ValidationFailed(val errors: ValidationErrors) : RequestValidationResult<Nothing>()
 
 suspend inline fun <reified T : Any> ApplicationCall.receiveAndValidate(
-    errors: (T) -> List<ValidationError> = { _ -> ValidationErrors.empty }
+    errors: (T) -> ValidationErrors = { _ -> ValidationErrorsDefault.empty }
 ): RequestValidationResult<T> =
     try {
         val received: T = receive(typeOf<T>())

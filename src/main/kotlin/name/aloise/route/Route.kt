@@ -11,7 +11,7 @@ import name.aloise.utils.http.*
 
 data class AccountData(val id: Int, val name: String, val centAmount: Int)
 data class AccountCreateRequest(val name: String, val centAmount: Int) : Validation {
-    override fun errors(): List<ValidationError> =
+    override suspend fun errors(): ValidationErrors =
         listOf(
             if (this.name.trim().isEmpty()) ValidationError("empty_name", "Empty Name") else null,
             if (this.centAmount < 0) ValidationError("negative_amount", "Negative Amount") else null

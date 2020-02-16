@@ -5,9 +5,9 @@ import name.aloise.repository.AccountBalance
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
-interface AccountService {
+data class CreateAccount(val name: String, val centAmount: Int = 0)
 
-    data class CreateAccount(val name: String, val centAmount: Int = 0)
+interface AccountService {
 
     suspend fun create(newAccount: CreateAccount): Pair<Account, AccountBalance>
     suspend fun get(accountId: Int): Pair<Account, AccountBalance>?
@@ -20,7 +20,7 @@ class InMemoryAccountService : AccountService {
     private val balances = ConcurrentHashMap<Int, AccountBalance>()
     private val counter = AtomicInteger(0)
 
-    override suspend fun create(newAccount: AccountService.CreateAccount): Pair<Account, AccountBalance> {
+    override suspend fun create(newAccount: CreateAccount): Pair<Account, AccountBalance> {
         val nextId = counter.incrementAndGet()
         val account = Account(nextId, newAccount.name)
         val balance = AccountBalance(newAccount.centAmount)

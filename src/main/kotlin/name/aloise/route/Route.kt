@@ -5,12 +5,18 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.response.respond
 import io.ktor.routing.*
 import name.aloise.service.AccountService
+import name.aloise.service.CreateAccount
 import name.aloise.utils.generic.fold
-import name.aloise.utils.http.decodeOrNull
+import name.aloise.utils.http.*
 
-data class AccountCreateRequest(val name: String)
-data class ErrorResponse(val error: String)
 data class AccountData(val id: Int, val name: String, val centAmount: Int)
+data class AccountCreateRequest(val name: String, val centAmount: Int) : Validation {
+    override fun errors(): List<ValidationError> =
+        listOf(
+            if (this.name.trim().isEmpty()) ValidationError("empty_name", "Empty Name") else null,
+            if (this.centAmount < 0) ValidationError("negative_amount", "Negative Amount") else null
+        ).mapNotNull { it }
+}
 
 fun Route.accounts(accountService: AccountService) {
     route("/accounts") {
@@ -23,15 +29,20 @@ fun Route.accounts(accountService: AccountService) {
         }
 
         post("/") {
-            call.decodeOrNull<AccountCreateRequest>().fold({ acc ->
-                val account = accountService.create(AccountService.CreateAccount(acc.name))
-                call.respond(
-                    HttpStatusCode.Created,
-                    AccountData(account.first.id, account.first.name, account.second.centAmount)
-                )
-            }, {
-                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Can't decode the Account json"))
-            })
+            when (val validation = call.receiveAndValidate<AccountCreateRequest> { it.errors() }) {
+                is Valid -> {
+                    val req = validation.result
+                    val account = accountService.create(CreateAccount(req.name, req.centAmount))
+                    call.respond(
+                        HttpStatusCode.Created,
+                        AccountData(account.first.id, account.first.name, account.second.centAmount)
+                    )
+                }
+                is ValidationFailed ->
+                    call.respond(HttpStatusCode.BadRequest, ValidationErrorResponse(validation.errors))
+                is ReceiveFailed ->
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Can't decode the Account json"))
+            }
         }
 
         delete("/{id}") {

@@ -1,6 +1,7 @@
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runBlockingTest
 import name.aloise.service.AccountService
+import name.aloise.service.CreateAccount
 import name.aloise.service.InMemoryAccountService
 import kotlin.random.Random
 import kotlin.test.Test
@@ -16,7 +17,7 @@ class AccountServiceTest {
     fun testCreateAccount() = runBlockingTest {
         val service = getService()
         val accountName = "test" + Random.Default.nextInt()
-        val result = service.create(AccountService.CreateAccount(accountName, 50))
+        val result = service.create(CreateAccount(accountName, 50))
         assertEquals(result.first.name, accountName)
     }
 
@@ -24,9 +25,8 @@ class AccountServiceTest {
     fun testGetAccount() = runBlockingTest {
         val service = getService()
         val accountName = "test" + Random.Default.nextInt()
-        val result = service.create(AccountService.CreateAccount(accountName, 50))
+        val result = service.create(CreateAccount(accountName, 50))
         val getResult = service.get(result.first.id)
-
         assertEquals(result, getResult)
     }
 
@@ -34,12 +34,10 @@ class AccountServiceTest {
     fun testRemoveAccount() = runBlockingTest {
         val service = getService()
         val accountName = "test" + Random.Default.nextInt()
-        val result = service.create(AccountService.CreateAccount(accountName, 50))
+        val result = service.create(CreateAccount(accountName, 50))
         val removeResult = service.remove(result.first.id)
         assert(removeResult)
-
         val getResult = service.get(result.first.id)
         assertNull(getResult)
-
     }
 }

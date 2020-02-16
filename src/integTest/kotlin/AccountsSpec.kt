@@ -1,5 +1,3 @@
-package integration
-
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod

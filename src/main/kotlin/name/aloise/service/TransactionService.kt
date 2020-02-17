@@ -12,14 +12,20 @@ enum class TransactionStatus {
 }
 
 data class Transaction(
-    val id: Int,
-    val fromAccountId: Int,
-    val toAccountId: Int,
-    val centAmount: Int,
-    val status: TransactionStatus
+        val id: Int,
+        val fromAccountId: Int,
+        val toAccountId: Int,
+        val centAmount: Int,
+        val status: TransactionStatus
 )
 
+sealed class TransactionValidationException(msg: String) : Exception(msg) {
+    class InvalidTransactionAmount() : TransactionValidationException("Invalid Transaction Amount")
+    class TransactionFromAndToAccountIdsAreEqual() : TransactionValidationException("Transaction From And To AccountIds Are Equal")
+}
+
 interface TransactionService {
+    @Throws(TransactionValidationException::class)
     suspend fun create(fromAccountId: Int, toAccountId: Int, transferCentAmount: Int): Transaction
 }
 
@@ -27,28 +33,32 @@ class GlobalMutexTransactionService(private val accountService: AccountService) 
     private val nextId = AtomicInteger(0)
     private val transactions = ConcurrentHashMap<Int, Transaction>()
 
+    @Throws(TransactionValidationException::class)
     override suspend fun create(fromAccountId: Int, toAccountId: Int, transferCentAmount: Int): Transaction {
+        if (transferCentAmount <= 0) throw TransactionValidationException.InvalidTransactionAmount()
+        if (fromAccountId == toAccountId) throw TransactionValidationException.TransactionFromAndToAccountIdsAreEqual()
+
         val nextTransactionId = nextId.incrementAndGet()
         val transaction =
-            Transaction(nextTransactionId, fromAccountId, toAccountId, transferCentAmount, TransactionStatus.PENDING)
+                Transaction(nextTransactionId, fromAccountId, toAccountId, transferCentAmount, TransactionStatus.PENDING)
         val finalTransaction =
-            accountService.mutex.withLock(null) {
-                val fromAccountUpdatedBalance = accountService.updateBalance(fromAccountId) {
-                    it.withdraw(transferCentAmount, nextTransactionId)
-                }
-                when {
-                    (fromAccountUpdatedBalance == null) ->
-                        // 'From' account was not found
-                        transaction.copy(status = TransactionStatus.FAILED)
-                    (fromAccountUpdatedBalance.lastTransactionId == nextTransactionId) ->
-                        // transaction id was updated -> proceed with the deposit
-                        processDeposit(fromAccountId, toAccountId, transferCentAmount, transaction)
-                    else ->
-                        // withdraw operation failed, transaction number was not updated
-                        transaction.copy(status = TransactionStatus.FAILED)
-                }
+                accountService.mutex.withLock(this) {
+                    val fromAccountUpdatedBalance = accountService.updateBalance(fromAccountId) {
+                        it.withdraw(transferCentAmount, nextTransactionId)
+                    }
+                    when {
+                        (fromAccountUpdatedBalance == null) ->
+                            // 'From' account was not found
+                            transaction.copy(status = TransactionStatus.FAILED)
+                        (fromAccountUpdatedBalance.lastTransactionId == nextTransactionId) ->
+                            // transaction id was updated -> proceed with the deposit
+                            processDeposit(fromAccountId, toAccountId, transferCentAmount, transaction)
+                        else ->
+                            // withdraw operation failed, transaction number was not updated
+                            transaction.copy(status = TransactionStatus.FAILED)
+                    }
 
-            }
+                }
         transactions[finalTransaction.id] = finalTransaction
 
         return finalTransaction

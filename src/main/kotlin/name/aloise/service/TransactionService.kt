@@ -27,6 +27,8 @@ sealed class TransactionValidationException(msg: String) : Exception(msg) {
 interface TransactionService {
     @Throws(TransactionValidationException::class)
     suspend fun create(fromAccountId: Int, toAccountId: Int, transferCentAmount: Int): Transaction
+
+    suspend fun get(transactionId: Int): Transaction?
 }
 
 class GlobalMutexTransactionService(private val accountService: AccountService) : TransactionService {
@@ -64,11 +66,13 @@ class GlobalMutexTransactionService(private val accountService: AccountService) 
         return finalTransaction
     }
 
+    override suspend fun get(transactionId: Int): Transaction? = transactions[transactionId]
+
     private suspend fun processDeposit(
-        fromAccountId: Int,
-        toAccountId: Int,
-        transferCentAmount: Int,
-        transaction: Transaction
+            fromAccountId: Int,
+            toAccountId: Int,
+            transferCentAmount: Int,
+            transaction: Transaction
     ): Transaction {
         val toAccountUpdatedBalance = accountService.updateBalance(toAccountId) {
             it.deposit(transferCentAmount, transaction.id)

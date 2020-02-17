@@ -22,7 +22,6 @@ class AccountsSpec {
 
     @Test
     fun testCreateAccount() {
-
         withTestApplication({ module() }) {
             var accountId: Int?
             val testName = "Test" + Random.Default.nextInt()

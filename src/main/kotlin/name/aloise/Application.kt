@@ -14,13 +14,19 @@ import io.ktor.server.engine.commandLineEnvironment
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import name.aloise.route.accounts
+import name.aloise.route.transactions
+import name.aloise.service.AccountService
+import name.aloise.service.GlobalMutexTransactionService
 import name.aloise.service.InMemoryAccountService
+import name.aloise.service.TransactionService
 
 fun main(args: Array<String>) {
     embeddedServer(Netty, commandLineEnvironment(args)).start(wait = true)
 }
 
 fun Application.module() {
+    val accountService: AccountService = InMemoryAccountService()
+    val transactionService: TransactionService = GlobalMutexTransactionService(accountService)
 
     install(ContentNegotiation) {
         jackson {
@@ -29,7 +35,8 @@ fun Application.module() {
     }
 
     install(Routing) {
-        accounts(InMemoryAccountService())
+        accounts(accountService)
+        transactions(transactionService)
         route("/") {
             get("/health") {
                 call.respondText("OK")

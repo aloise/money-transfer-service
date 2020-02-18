@@ -33,6 +33,13 @@ interface TransactionService {
     // TODO - This function should stream results ideally
     suspend fun list(): List<Transaction>
 }
+/*
+
+class GranularLockTransactionService(private val accountService: AccountService): TransactionService {
+    private val nextId = AtomicInteger(0)
+    private val
+}
+*/
 
 class GlobalMutexTransactionService(private val accountService: AccountService) : TransactionService {
     private val nextId = AtomicInteger(0)

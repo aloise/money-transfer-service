@@ -8,12 +8,13 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 data class CreateAccount(val name: String, val centAmount: Int = 0)
+data class AccountWithBalance(val account: Account, val balance: AccountBalance)
 
 interface AccountService {
     val mutex: Mutex
 
-    suspend fun create(newAccount: CreateAccount): Pair<Account, AccountBalance>
-    suspend fun get(accountId: Int): Pair<Account, AccountBalance>?
+    suspend fun create(newAccount: CreateAccount): AccountWithBalance
+    suspend fun get(accountId: Int): AccountWithBalance?
     suspend fun remove(accountId: Int): Boolean
     /**
      * A way to atomically update balance
@@ -22,41 +23,41 @@ interface AccountService {
      * @return Boolean - new balance if updated, old otherwise or null if accountId was not found
      */
     suspend fun updateBalance(
-        accountId: Int,
-        balanceUpdateIfNotNull: (AccountBalance) -> AccountBalance?
+            accountId: Int,
+            balanceUpdateIfNotNull: (AccountBalance) -> AccountBalance?
     ): AccountBalance?
 }
 
 class InMemoryAccountService : AccountService {
-    private val accounts = ConcurrentHashMap<Int, Account>()
-    private val balances = ConcurrentHashMap<Int, AccountBalance>()
+    private val accounts = ConcurrentHashMap<Int, AccountWithBalance>()
     private val counter = AtomicInteger(0)
     override val mutex: Mutex = Mutex()
 
-    override suspend fun create(newAccount: CreateAccount): Pair<Account, AccountBalance> {
+    override suspend fun create(newAccount: CreateAccount): AccountWithBalance {
         val nextId = counter.incrementAndGet()
         val account = Account(nextId, newAccount.name)
         val balance = AccountBalance(newAccount.centAmount)
-        accounts[nextId] = account
-        balances[nextId] = balance
-        return Pair(account, balance)
+        val accountWithBalance = AccountWithBalance(account, balance)
+        accounts[nextId] = accountWithBalance
+        return accountWithBalance
     }
 
-    override suspend fun get(accountId: Int): Pair<Account, AccountBalance>? =
-        accounts[accountId]?.let { acc ->
-            balances[accountId]?.let { balance -> Pair(acc, balance) }
-        }
+    override suspend fun get(accountId: Int): AccountWithBalance? = accounts[accountId]
 
     override suspend fun remove(accountId: Int): Boolean = mutex.withLock {
-        balances.remove(accountId) != null || accounts.remove(accountId) != null
+        accounts.remove(accountId) != null
     }
 
     override suspend fun updateBalance(
-        accountId: Int,
-        balanceUpdateIfNotNull: (AccountBalance) -> AccountBalance?
+            accountId: Int,
+            balanceUpdateIfNotNull: (AccountBalance) -> AccountBalance?
     ): AccountBalance? =
-        balances.computeIfPresent(accountId) { _, balance ->
-            balanceUpdateIfNotNull(balance) ?: balance
-        }
+            accounts.computeIfPresent(accountId) { _, accountWithBalance ->
+                val updatedBalance = balanceUpdateIfNotNull(accountWithBalance.balance)
+                if (updatedBalance == null)
+                    accountWithBalance
+                else
+                    accountWithBalance.copy(balance = updatedBalance)
+            }?.balance
 
 }

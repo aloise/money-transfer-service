@@ -18,7 +18,7 @@ class AccountServiceTest {
         val service = getService()
         val accountName = "test" + Random.Default.nextInt()
         val result = service.create(CreateAccount(accountName, 50))
-        assertEquals(result.first.name, accountName)
+        assertEquals(result.account.name, accountName)
     }
 
     @Test
@@ -26,7 +26,7 @@ class AccountServiceTest {
         val service = getService()
         val accountName = "test" + Random.Default.nextInt()
         val result = service.create(CreateAccount(accountName, 50))
-        val getResult = service.get(result.first.id)
+        val getResult = service.get(result.account.id)
         assertEquals(result, getResult)
     }
 
@@ -35,9 +35,9 @@ class AccountServiceTest {
         val service = getService()
         val accountName = "test" + Random.Default.nextInt()
         val result = service.create(CreateAccount(accountName, 50))
-        val removeResult = service.remove(result.first.id)
+        val removeResult = service.remove(result.account.id)
         assert(removeResult)
-        val getResult = service.get(result.first.id)
+        val getResult = service.get(result.account.id)
         assertNull(getResult)
     }
 }

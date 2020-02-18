@@ -22,7 +22,7 @@ fun Route.accounts(accountService: AccountService) {
     route("/accounts") {
         get("/{id}") {
             call.parameters["id"]?.toIntOrNull()?.let { accountService.get(it) }.fold({ account ->
-                call.respond(AccountData(account.first.id, account.first.name, account.second.centAmount))
+                call.respond(AccountData(account.account.id, account.account.name, account.balance.centAmount))
             }, {
                 call.respond(HttpStatusCode.NotFound)
             })
@@ -35,7 +35,7 @@ fun Route.accounts(accountService: AccountService) {
                     val account = accountService.create(CreateAccount(req.name, req.centAmount))
                     call.respond(
                         HttpStatusCode.Created,
-                        AccountData(account.first.id, account.first.name, account.second.centAmount)
+                            AccountData(account.account.id, account.account.name, account.balance.centAmount)
                     )
                 }
                 is ValidationFailed ->

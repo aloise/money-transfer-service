@@ -7,6 +7,7 @@ import io.ktor.routing.Route
 import io.ktor.routing.get
 import io.ktor.routing.post
 import io.ktor.routing.route
+import name.aloise.service.Transaction
 import name.aloise.service.TransactionService
 import name.aloise.utils.generic.fold
 import name.aloise.utils.http.*
@@ -14,9 +15,11 @@ import name.aloise.utils.http.*
 data class TransactionCreateRequest(val fromAccountId: Int, val toAccountId: Int, val centAmount: Int) : Validation {
     override suspend fun errors(): ValidationErrors =
             listOf(
-                    if (this.centAmount <= 0) ValidationError("invalid_amount", "Negative Amount") else null
+                    if (centAmount <= 0) ValidationError("invalid_amount", "Negative Amount") else null
             ).mapNotNull { it }
 }
+
+data class TransactionListResponse(val results: List<Transaction>, val count: Int)
 
 fun Route.transactions(transactionService: TransactionService) {
     route("/transactions") {
@@ -26,6 +29,11 @@ fun Route.transactions(transactionService: TransactionService) {
             }, {
                 call.respond(HttpStatusCode.NotFound)
             })
+        }
+
+        get("/") {
+            val transactions = transactionService.list()
+            call.respond(TransactionListResponse(transactions, transactions.size))
         }
 
         post("/") {

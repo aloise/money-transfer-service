@@ -1,0 +1,168 @@
+openapi: 3.0.0
+info:
+  version: '1.0.0'
+  title: 'TransactionService'
+  description: 'TransactionService'
+
+paths:
+  /accounts:
+    post:
+      description: "Create an account"
+      requestBody:
+        description: Pet to add to the store
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccount'
+      responses:
+        '201':
+          description: created account
+          content:
+            'application/json':
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Account'
+
+  /accounts/{id}:
+    get:
+      description: "Create an account"
+      parameters:
+        - name: id
+          in: path
+          description: ID of an Account
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Account data response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '404':
+          description: Accound was not found
+    delete:
+      description: "Delete and account"
+      parameters:
+        - name: id
+          in: path
+          description: ID of an Account
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted successfully
+
+  /transactions:
+    post:
+      description: "Create a transactions"
+      requestBody:
+        description: Pet to add to the store
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransaction'
+      responses:
+        '201':
+          description: Created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+
+    get:
+      description: "List all transactions"
+      responses:
+        '200':
+          description: Transactions list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllTransactions'
+  /transactions/{id}:
+    get:
+      description: "Get a account"
+      parameters:
+        - name: id
+          in: path
+          description: ID of an Account
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Transactions list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '404':
+          description: Transaction was not found
+
+components:
+  schemas:
+    CreateAccount:
+      type: object
+      required:
+        - name
+        - centAmount
+      properties:
+        name:
+          type: string
+        centAmount:
+          type: integer
+    Account:
+      allOf:
+        - $ref: '#/components/schemas/CreateAccount'
+        - type: object
+          required:
+            - id
+            - name
+            - centAmount
+          properties:
+            id:
+              type: integer
+    CreateTransaction:
+      type: object
+      required:
+        - fromAccountId
+        - toAccountId
+        - centAmount
+      properties:
+        fromAccountId:
+          type: integer
+        toAccountId:
+          type: integer
+        centAmount:
+          type: integer
+    Transaction:
+      allOf:
+        - $ref: '#/components/schemas/CreateTransaction'
+        - type: object
+          properties:
+            id:
+              type: integer
+            status:
+              type: string
+              enum: [PENDING, FAILED, SUCCESS]
+            createdAt:
+              type: integer
+              format: int64
+          required:
+            - id
+            - status
+            - createdAt
+    AllTransactions:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+        count:
+          type: integer

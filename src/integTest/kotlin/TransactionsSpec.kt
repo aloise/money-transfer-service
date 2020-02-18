@@ -15,11 +15,15 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
 @Serializable
-data class CreateTransactionResponse(val id: Int,
-                                     val fromAccountId: Int,
-                                     val toAccountId: Int,
-                                     val centAmount: Int,
-                                     val status: String)
+data class TestTransactionResponse(val id: Int,
+                                   val fromAccountId: Int,
+                                   val toAccountId: Int,
+                                   val centAmount: Int,
+                                   val status: String,
+                                   val createdAt: Long)
+
+@Serializable
+data class TestTransactionListResponse(val results: List<TestTransactionResponse>, val count: Int)
 
 @UnstableDefault
 class TransactionsSpec {
@@ -53,7 +57,7 @@ class TransactionsSpec {
             }.apply {
                 assertEquals(HttpStatusCode.Created, response.status())
                 val content = assertNotNull(response.content)
-                val trx = Json.parse(CreateTransactionResponse.serializer(), content)
+                val trx = Json.parse(TestTransactionResponse.serializer(), content)
                 assertEquals("SUCCESS", trx.status)
                 assertEquals(500, trx.centAmount)
                 trxId = trx.id
@@ -76,4 +80,36 @@ class TransactionsSpec {
         }
     }
 
+    @Test
+    fun listTransactions() {
+        withTestApplication({ module() }) {
+            val accountId1 = createAccount("Test1", 1000)
+            val accountId2 = createAccount("Test2", 2000)
+
+            assertNotNull(accountId1)
+            assertNotNull(accountId2)
+
+            handleRequest(HttpMethod.Post, "/transactions") {
+                addHeader(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                setBody("""{"fromAccountId": $accountId1, "toAccountId": $accountId2, "centAmount": 500}""")
+            }
+
+            handleRequest(HttpMethod.Post, "/transactions") {
+                addHeader(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                setBody("""{"fromAccountId": $accountId1, "toAccountId": $accountId2, "centAmount": 1}""")
+            }
+
+            handleRequest(HttpMethod.Post, "/transactions") {
+                addHeader(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                setBody("""{"fromAccountId": $accountId1, "toAccountId": $accountId2, "centAmount": 2}""")
+            }
+
+            handleRequest(HttpMethod.Get, "/transactions").apply {
+                assertEquals(HttpStatusCode.OK, response.status())
+                val acc = Json.parse(TestTransactionListResponse.serializer(), assertNotNull(response.content))
+                assertEquals(3, acc.count)
+
+            }
+        }
+    }
 }

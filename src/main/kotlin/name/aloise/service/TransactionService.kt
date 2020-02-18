@@ -16,7 +16,8 @@ data class Transaction(
         val fromAccountId: Int,
         val toAccountId: Int,
         val centAmount: Int,
-        val status: TransactionStatus
+        val status: TransactionStatus,
+        val createdAt: Long // Unix timestamp in millis
 )
 
 sealed class TransactionValidationException(msg: String) : Exception(msg) {
@@ -29,6 +30,8 @@ interface TransactionService {
     suspend fun create(fromAccountId: Int, toAccountId: Int, transferCentAmount: Int): Transaction
 
     suspend fun get(transactionId: Int): Transaction?
+    // TODO - This function should stream results ideally
+    suspend fun list(): List<Transaction>
 }
 
 class GlobalMutexTransactionService(private val accountService: AccountService) : TransactionService {
@@ -42,7 +45,7 @@ class GlobalMutexTransactionService(private val accountService: AccountService) 
 
         val nextTransactionId = nextId.incrementAndGet()
         val transaction =
-                Transaction(nextTransactionId, fromAccountId, toAccountId, transferCentAmount, TransactionStatus.PENDING)
+                Transaction(nextTransactionId, fromAccountId, toAccountId, transferCentAmount, TransactionStatus.PENDING, System.currentTimeMillis())
         val finalTransaction =
                 accountService.mutex.withLock(this) {
                     val fromAccountUpdatedBalance = accountService.updateBalance(fromAccountId) {
@@ -67,6 +70,8 @@ class GlobalMutexTransactionService(private val accountService: AccountService) 
     }
 
     override suspend fun get(transactionId: Int): Transaction? = transactions[transactionId]
+    override suspend fun list(): List<Transaction> =
+            transactions.values.toList().sortedBy { it.id }
 
     private suspend fun processDeposit(
             fromAccountId: Int,

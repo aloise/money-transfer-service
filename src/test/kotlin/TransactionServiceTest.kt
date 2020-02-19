@@ -183,7 +183,6 @@ class TransactionServiceTest {
         assertEquals(acc2Balance.centAmount + 2, updatedAcc2.centAmount)
     }
 
-    // TODO - property tests and additional parallelism tests
     @Test
     fun transferCorrectlyInParallelMultipleTransactionBetweenAccountsAndAccountRemoval() = runBlockingTest {
         val (transactions, accounts) = getServices()
@@ -215,5 +214,7 @@ class TransactionServiceTest {
 
         assertEquals(acc1Balance.centAmount - (num - 1), updatedAcc1.centAmount)
     }
+
+    // TODO - property tests and additional parallelism tests
 
 }

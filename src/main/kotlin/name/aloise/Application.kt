@@ -16,8 +16,8 @@ import io.ktor.server.netty.Netty
 import name.aloise.route.accounts
 import name.aloise.route.transactions
 import name.aloise.service.AccountService
-import name.aloise.service.GlobalMutexTransactionService
 import name.aloise.service.InMemoryAccountService
+import name.aloise.service.InMemoryTransactionService
 import name.aloise.service.TransactionService
 
 fun main(args: Array<String>) {
@@ -26,7 +26,7 @@ fun main(args: Array<String>) {
 
 fun Application.module() {
     val accountService: AccountService = InMemoryAccountService()
-    val transactionService: TransactionService = GlobalMutexTransactionService(accountService)
+    val transactionService: TransactionService = InMemoryTransactionService(accountService)
 
     install(ContentNegotiation) {
         jackson {

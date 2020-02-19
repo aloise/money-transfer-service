@@ -9,7 +9,7 @@ import kotlin.test.*
 class TransactionServiceTest {
     private fun getServices(): Pair<TransactionService, AccountService> {
         val accounts = InMemoryAccountService()
-        return Pair(GlobalMutexTransactionService(accounts), accounts)
+        return Pair(InMemoryTransactionService(accounts), accounts)
     }
 
     @Test
@@ -183,5 +183,37 @@ class TransactionServiceTest {
         assertEquals(acc2Balance.centAmount + 2, updatedAcc2.centAmount)
     }
 
+    // TODO - property tests and additional parallelism tests
+    @Test
+    fun transferCorrectlyInParallelMultipleTransactionBetweenAccountsAndAccountRemoval() = runBlockingTest {
+        val (transactions, accounts) = getServices()
+
+        val (acc1, acc1Balance) = accounts.create(CreateAccount("test3", 2000000))
+        val (acc2, _) = accounts.create(CreateAccount("test4", 1000000))
+
+        val num = 50 // We would run twice this amount of transactions
+
+        // running transactions - we are making (num - 1) transactions and removing the destination account afterwards
+        val allTransactions =
+                (1..num * 2).map { i ->
+                    val (from, to) = if (i <= num + 1) Pair(acc1.id, acc2.id) else Pair(acc2.id, acc1.id)
+                    if (i == num) accounts.remove(to)
+                    transactions.create(from, to, 1)
+                }
+
+        assertEquals(num - 1, allTransactions.filter { it.status == TransactionStatus.SUCCESS }.size)
+        assertEquals(num + 1, allTransactions.filter { it.status == TransactionStatus.FAILED }.size)
+
+        assertEquals(num + 1, allTransactions.filter { it.fromAccountId == acc1.id }.size)
+        assertEquals(num - 1, allTransactions.filter { it.fromAccountId == acc2.id }.size)
+
+        assertEquals(num + 1, allTransactions.filter { it.fromAccountId == acc1.id }.map { it.centAmount }.sum())
+        assertEquals(num - 1, allTransactions.filter { it.fromAccountId == acc2.id }.map { it.centAmount }.sum())
+
+
+        val (_, updatedAcc1) = assertNotNull(accounts.get(acc1.id))
+
+        assertEquals(acc1Balance.centAmount - (num - 1), updatedAcc1.centAmount)
+    }
 
 }

@@ -1,6 +1,8 @@
 package name.aloise.service
 
-import kotlinx.coroutines.sync.withLock
+import mu.KotlinLogging
+import name.aloise.repository.AccountBalance
+import name.aloise.utils.generic.fold
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -30,18 +32,13 @@ interface TransactionService {
     suspend fun create(fromAccountId: Int, toAccountId: Int, transferCentAmount: Int): Transaction
 
     suspend fun get(transactionId: Int): Transaction?
-    // TODO - This function should stream results ideally
+
+    // TODO - This function should stream results (rx stream)
     suspend fun list(): List<Transaction>
 }
-/*
 
-class GranularLockTransactionService(private val accountService: AccountService): TransactionService {
-    private val nextId = AtomicInteger(0)
-    private val
-}
-*/
-
-class GlobalMutexTransactionService(private val accountService: AccountService) : TransactionService {
+class InMemoryTransactionService(private val accountService: AccountService) : TransactionService {
+    private val logger = KotlinLogging.logger {}
     private val nextId = AtomicInteger(0)
     private val transactions = ConcurrentHashMap<Int, Transaction>()
 
@@ -51,55 +48,70 @@ class GlobalMutexTransactionService(private val accountService: AccountService) 
         if (fromAccountId == toAccountId) throw TransactionValidationException.TransactionFromAndToAccountIdsAreEqual()
 
         val nextTransactionId = nextId.incrementAndGet()
-        val transaction =
-                Transaction(nextTransactionId, fromAccountId, toAccountId, transferCentAmount, TransactionStatus.PENDING, System.currentTimeMillis())
-        val finalTransaction =
-                accountService.mutex.withLock(this) {
-                    val fromAccountUpdatedBalance = accountService.updateBalance(fromAccountId) {
-                        it.withdraw(transferCentAmount, nextTransactionId)
-                    }
-                    when {
-                        (fromAccountUpdatedBalance == null) ->
-                            // 'From' account was not found
-                            transaction.copy(status = TransactionStatus.FAILED)
-                        (fromAccountUpdatedBalance.lastTransactionId == nextTransactionId) ->
-                            // transaction id was updated -> proceed with the deposit
-                            processDeposit(fromAccountId, toAccountId, transferCentAmount, transaction)
-                        else ->
-                            // withdraw operation failed, transaction number was not updated
-                            transaction.copy(status = TransactionStatus.FAILED)
-                    }
+        val transaction = Transaction(
+                nextTransactionId,
+                fromAccountId,
+                toAccountId,
+                transferCentAmount,
+                TransactionStatus.PENDING,
+                System.currentTimeMillis()
+        )
 
+        val updatedBalances = accountService.updateBalances(listOf(fromAccountId, toAccountId)) { accounts ->
+            val from = accounts[fromAccountId]
+            val to = accounts[toAccountId]
+            if (from != null && to != null) {
+                from.withdraw(transferCentAmount, nextTransactionId).fold({ newFromBalance ->
+                    val newToBalance = to.deposit(transferCentAmount, nextTransactionId)
+                    mapOf(
+                            fromAccountId to newFromBalance,
+                            toAccountId to newToBalance
+                    )
+                }, {
+                    // failed to withdraw -> responding with old accounts data
+                    accounts
+                })
+
+            } else {
+                // failed to withdraw -> responding with old accounts data
+                accounts
+            }
+        }
+        val finalTransaction =
+                when {
+                    (updatedBalances[fromAccountId]?.lastTransactionId == nextTransactionId) &&
+                            (updatedBalances[toAccountId]?.lastTransactionId == nextTransactionId) ->
+                        // both accounts were updated
+                        transaction.copy(status = TransactionStatus.SUCCESS)
+                    else ->
+                        // withdraw operation failed, the exact reason might be found by inspecting updatedBalances
+                        processFailedTransaction(transaction, updatedBalances)
                 }
+
         transactions[finalTransaction.id] = finalTransaction
 
         return finalTransaction
     }
 
-    override suspend fun get(transactionId: Int): Transaction? = transactions[transactionId]
-    override suspend fun list(): List<Transaction> =
-            transactions.values.toList().sortedBy { it.id }
+    private fun processFailedTransaction(transaction: Transaction, updatedBalances: Map<Int, AccountBalance>): Transaction {
+        if (updatedBalances.containsKey(transaction.fromAccountId)) {
+            logger.error { "Source account was not found for transaction $transaction" }
+        } else if (updatedBalances[transaction.fromAccountId]?.lastTransactionId != transaction.id) {
+            logger.error { "Withdraw transaction failed for transaction $transaction" }
+        }
 
-    private suspend fun processDeposit(
-            fromAccountId: Int,
-            toAccountId: Int,
-            transferCentAmount: Int,
-            transaction: Transaction
-    ): Transaction {
-        val toAccountUpdatedBalance = accountService.updateBalance(toAccountId) {
-            it.deposit(transferCentAmount, transaction.id)
+        if (updatedBalances.containsKey(transaction.toAccountId)) {
+            logger.error { "Target account was not found in transaction $transaction" }
+        } else if (updatedBalances[transaction.toAccountId]?.lastTransactionId != transaction.id) {
+            logger.error { "Deposit transaction failed for transaction $transaction" }
         }
-        return if (toAccountUpdatedBalance == null) {
-            // toAccount was not found, rolling back transaction
-            accountService.updateBalance(fromAccountId) {
-                it.rollback(transferCentAmount)
-            }
-            transaction.copy(status = TransactionStatus.FAILED)
-        } else {
-            // We are done !
-            transaction.copy(status = TransactionStatus.SUCCESS)
-        }
+
+        return transaction.copy(status = TransactionStatus.FAILED)
     }
+
+    override suspend fun get(transactionId: Int): Transaction? = transactions[transactionId]
+    override suspend fun list(): List<Transaction> = transactions.values.toList().sortedBy { it.id }
+
 }
 
 

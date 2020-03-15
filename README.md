@@ -56,3 +56,12 @@ Server health:
 ### REST API Specification
 
 See `docs/swagger.yaml`
+
+
+TODO - Improvements
+
+1. Real Database
+2. Monitoring / metrics reporting (micrometer)
+3. Logging
+4. Container / Build in Container
+5. Event Sourcing / CQRS
